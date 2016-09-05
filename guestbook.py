@@ -1,0 +1,306 @@
+import os
+import urllib
+import json
+
+from google.appengine.api import users
+from google.appengine.ext import ndb
+
+import jinja2
+import webapp2
+
+JINJA_ENVIRONMENT = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
+    extensions=['jinja2.ext.autoescape'],
+    autoescape=True)
+
+DEFAULT_GUESTBOOK_NAME = 'default_guestbook'
+DEFAULT_IDX = -987654321  # for latest letter
+
+global_content = 0
+global_content_cnt = 0
+
+# we set a parent key on the 'greetings' to ensure that they are all
+# in the same entity group. queries across the single entity group
+# will be consistent.  however, the write rate should be limited to
+# ~1/second.
+
+def guestbook_key(guestbook_name=DEFAULT_GUESTBOOK_NAME):
+    """constructs a datastore key for a guestbook entity.
+
+    we use guestbook_name as the key.
+    """
+    return ndb.Key('Guestbook', guestbook_name)
+
+
+class Author(ndb.Model):
+    """sub model for representing an author."""
+    identity = ndb.StringProperty(indexed=False)
+    email = ndb.StringProperty(indexed=False)
+
+
+class Greeting(ndb.Model):
+    """a main model for representing an individual guestbook entry."""
+    author = ndb.StructuredProperty(Author)
+    content = ndb.StringProperty(indexed=False)
+    date = ndb.DateTimeProperty(auto_now_add=True)
+
+id_faith_insung_cho = 1
+# owner of each postbox
+class Owner(ndb.Model):
+    name = ndb.StringProperty(indexed=False)
+    idx = ndb.IntegerProperty() # save the latest idx of letters
+
+
+
+class Letter(ndb.Model):
+    idx = ndb.IntegerProperty()
+    sender = ndb.StringProperty(indexed=False)
+    content = ndb.TextProperty()
+    date = ndb.DateTimeProperty(auto_now_add=True)
+
+
+class MainPage(webapp2.RequestHandler):
+
+    def get(self):
+        guestbook_name = self.request.get('guestbook_name',DEFAULT_GUESTBOOK_NAME)
+        greetings_query = Greeting.query(
+            ancestor=guestbook_key(guestbook_name)).order(-Greeting.date)
+        greetings = greetings_query.fetch(10)
+
+        user = users.get_current_user()
+        if user:
+            url = users.create_logout_url(self.request.uri)
+            url_linktext = 'Logout'
+        else:
+            url = users.create_login_url(self.request.uri)
+            url_linktext = 'Login'
+
+        template_values = {
+            'user': user,
+            'greetings': greetings,
+            'guestbook_name': urllib.quote_plus(guestbook_name),
+            'url': url,
+            'url_linktext': url_linktext,
+        }
+
+        template = JINJA_ENVIRONMENT.get_template('index.html')
+        self.response.write(template.render(template_values))
+ 
+class Guestbook(webapp2.RequestHandler):
+
+    def post(self):
+        # We set the same parent key on the 'Greeting' to ensure each
+    	# Greeting is in the same entity group. Queries across the
+        # single entity group will be consistent. However, the write
+        # rate to a single entity group should be limited to
+        # ~1/second.
+
+        global global_content_cnt
+        
+        #guestbook_name = self.request.get('guestbook_name',DEFAULT_GUESTBOOK_NAME)
+        guestbook_name = 'hello'
+        greeting = Greeting(parent=guestbook_key(guestbook_name))
+
+        if users.get_current_user():
+            greeting.author = Author(
+                identity=users.get_current_user().user_id(),
+                email=users.get_current_user().email())
+        
+        idx = 0
+        owner = ndb.Key('Owner', 'insungcho').get()
+        if not owner:
+            owner = Owner(id='insungcho', idx = 1)
+
+        idx = owner.idx
+
+        greeting.content = self.request.get('content') + str(idx)
+        greeting.put()
+
+
+        owner.idx = idx +1
+        owner.put()
+
+
+        query_params = {'guestbook_name': guestbook_name}
+        self.redirect('/?' + urllib.urlencode(query_params))
+
+
+class PostBox(webapp2.RequestHandler):
+
+    def get(self):
+        idx = int(self.request.get('idx', DEFAULT_IDX))
+        cnt = int(self.request.get('cnt', 20))
+        name = self.request.get('name', "insungcho")
+
+        if idx == DEFAULT_IDX:
+            idx = ndb.Key('Owner', name).get().idx - cnt
+	
+        # Retrieve all Letter entities
+        letters_query = Letter.query(ancestor=ndb.Key('Letter', name)) 
+        letters_query = letters_query.filter(Letter.idx >= idx)
+        letters_query = letters_query.filter(Letter.idx < (idx + cnt))
+        letters_query = letters_query.order(-Letter.idx)
+
+        letters = letters_query.fetch()
+
+        # idx: {"from": "", "content": ""} 
+        self.response.headers['Content-Type'] = 'application/json'
+        output = [] 
+        for letter in letters:
+            output.append({"idx": letter.idx, "from": letter.sender, "content": letter.content,
+                            "date": letter.date.strftime("%Y-%m-%d %H:%M:%S")})
+
+        self.response.write(json.dumps(output))
+
+
+class LetterForm(webapp2.RequestHandler):
+
+    def get(self):
+        template = JINJA_ENVIRONMENT.get_template('letter.html')
+        self.response.write(template.render({}))
+     
+    def post(self):
+        @ndb.transactional(xg=True)
+        def atomic_post():
+            # now, every letter is for insungcho
+            owner = ndb.Key('Owner', 'insungcho').get()
+            if not owner:
+                owner = Owner(id='insungcho', idx = 1)
+
+            # put letter
+            letter = Letter(parent=ndb.Key('Letter', 'insungcho'))
+
+            letter.idx = owner.idx
+            letter.sender = self.request.get('from')
+            letter.content = self.request.get('content')
+            letter.put()
+
+            owner.idx = owner.idx + 1
+            owner.put()
+
+        atomic_post()
+        self.redirect('/letter')
+
+        if self.request.get('from') == "erase all 9876543210":
+            ndb.delete_multi(Letter.query(ancestor=ndb.Key('Letter', 'insungcho')).fetch(keys_only = True))
+            # init ownek
+            owner = ndb.Key('Owner', 'insungcho').get()
+            owner.idx = 1;
+            owner.put()
+
+class KHLetterForm(webapp2.RequestHandler):
+
+    def get(self):
+        template = JINJA_ENVIRONMENT.get_template('khletter.html')
+        self.response.write(template.render({}))
+     
+    def post(self):
+        @ndb.transactional(xg=True)
+        def atomic_post():
+            # now, every letter is for insungcho
+            owner = ndb.Key('Owner', 'keonhyeongkim').get()
+            if not owner:
+                owner = Owner(id='keonhyeongkim', idx = 1)
+
+            # put letter
+            letter = Letter(parent=ndb.Key('Letter', 'keonhyeongkim'))
+
+            letter.idx = owner.idx
+            letter.sender = self.request.get('from')
+            letter.content = self.request.get('content')
+            letter.put()
+
+            owner.idx = owner.idx + 1
+            owner.put()
+
+        atomic_post()
+        self.redirect('/khletter')
+
+        if self.request.get('from') == "erase all 9876543210":
+            ndb.delete_multi(Letter.query(ancestor=ndb.Key('Letter', 'keonhyeongkim')).fetch(keys_only = True))
+            # init owner
+            owner = ndb.Key('Owner', 'keonhyeongkim').get()
+            owner.idx = 1;
+            owner.put()
+
+class HYLetterForm(webapp2.RequestHandler):
+
+    def get(self):
+        template = JINJA_ENVIRONMENT.get_template('hyletter.html')
+        self.response.write(template.render({}))
+     
+    def post(self):
+        @ndb.transactional(xg=True)
+        def atomic_post():
+            # now, every letter is for insungcho
+            owner = ndb.Key('Owner', 'hykim').get()
+            if not owner:
+                owner = Owner(id='hykim', idx = 1)
+
+            # put letter
+            letter = Letter(parent=ndb.Key('Letter', 'hykim'))
+
+            letter.idx = owner.idx
+            letter.sender = self.request.get('from')
+            letter.content = self.request.get('content')
+            letter.put()
+
+            owner.idx = owner.idx + 1
+            owner.put()
+
+        atomic_post()
+        self.redirect('/hyletter')
+
+        if self.request.get('from') == "erase all 9876543210":
+            ndb.delete_multi(Letter.query(ancestor=ndb.Key('Letter', 'hykim')).fetch(keys_only = True))
+            # init owner
+            owner = ndb.Key('Owner', 'hykim').get()
+            owner.idx = 1;
+            owner.put()
+
+class FoundationLetterForm(webapp2.RequestHandler):
+    
+    def get(self):
+        template = JINJA_ENVIRONMENT.get_template('foundation.html')
+        self.response.write(template.render({}))
+    
+    def post(self):
+        @ndb.transactional(xg=True)
+        def atomic_post():
+            owner = ndb.Key('Owner', 'hyunabaek').get()
+            if not owner:
+                owner = Owner(id='hyunabaek', idx = 1)
+            
+            # put letter
+            letter = Letter(parent=ndb.Key('Letter', 'hyunabaek'))
+            
+            letter.idx = owner.idx
+            letter.sender = self.request.get('from')
+            letter.content = self.request.get('content')
+            letter.put()
+            
+            owner.idx = owner.idx + 1
+            owner.put()
+                
+        atomic_post()
+        self.redirect('/foundation')
+        
+        if self.request.get('from') == "erase all 9876543210":
+            ndb.delete_multi(Letter.query(ancestor=ndb.Key('Letter', 'hyunabaek')).fetch(keys_only = True))
+            # init owner
+            owner = ndb.Key('Owner', 'hyunabaek').get()
+            owner.idx = 1;
+            owner.put()
+
+
+app = webapp2.WSGIApplication([
+    ('/', MainPage),
+    ('/sign', Guestbook),
+    ('/postbox', PostBox),
+    ('/letter', LetterForm),
+    ('/khletter', KHLetterForm),
+    ('/hyletter', HYLetterForm),
+    ('/foundation', FoundationLetterForm),
+], debug=True)
+
+

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hello!</title>
+    <script async src="/js/base.js"></script>
+    <link rel="stylesheet" href="/bootstrap/css/bootstrap.css">
+    <link rel="stylesheet" href="/bootstrap/css/bootstrap-responsive.css">
+    <style>
+        body {
+            padding-top: 80px;
+            padding-bottom: 40px;
+            background-color: #f5f5f5;
+        }
+        blockquote {
+            margin-bottom: 10px;
+            border-left-color: #bbb;
+        }
+        form {
+            margin-top: 10px;
+        }
+        form label {
+          width: 90px;
+          display: inline-block;
+        }
+        .form-signin input[type="text"] {
+            font-size: 16px;
+            height: auto;
+            margin-bottom: 15px;
+            padding: 7px 9px;
+        }
+        .row {
+            margin-left: 0px;
+            margin-top: 10px;
+            overflow: scroll;
+        }
+    </style>
+</head>
+<body>
+<div class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <h1>To: Faith-Insung-Cho</h1>  
+        </div>
+    </div>
+</div>
+<div class="container">
+
+    <output id="outputLog"></output>
+    
+    <form action="/letter" method="post" onsubmit="return true;">
+        <h2></h2> 
+        <div><label for="from">From:</label><input type="text" name="from" /></div>
+        <div><textarea name="content" rows="15" cols="60"></textarea></div>
+        <div><input id="listGreeting" type="submit" class="btn btn-small" value="Submit"></div>
+    </form>
+    <script>
+        function init() {
+            google.appengine.samples.hello.init('//' + window.location.host + '/_ah/api');
+        }
+    </script>
+    <script src="https://apis.google.com/js/client.js?onload=init"></script>
+</div>
+</body>
+</html>
+

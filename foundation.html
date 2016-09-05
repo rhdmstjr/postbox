@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hello!</title>
+    <script async src="/js/base.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.2/jquery.min.js"></script>
+    <link rel="stylesheet" href="/bootstrap/css/bootstrap.css">
+    <link rel="stylesheet" href="/bootstrap/css/bootstrap-responsive.css">
+    <style>
+        body {
+            padding-top: 80px;
+            padding-bottom: 40px;
+            width:100%;
+   			height:100%;
+            background-color: #f5f5f5;
+        }
+        label{
+            color: green
+        }
+        blockquote {
+            margin-bottom: 10px;
+            border-left-color: #bbb;
+        }
+        form {
+            margin-top: 10px;
+        }
+        form label {
+          width: 90px;
+          display: inline-block;
+        }
+        .form-signin input[type="text"] {
+            font-size: 16px;
+            height: auto;
+            margin-bottom: 15px;
+            padding: 7px 9px;
+        }
+        .row {
+            margin-left: 0px;
+            margin-top: 10px;
+            overflow: scroll;
+        }
+    
+    input[type=text]{
+        box-sizing: border-box;
+        border: 2px solid #4CAF50;
+        border-radius: 8px;
+        background-color: #f8f8f8;
+    }
+    
+        textarea {
+            padding: 12px 20px;
+            box-sizing: border-box;
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            background-color: #f8f8f8;
+            font-weight: bold;
+            resize: none;
+            overflow: hidden
+            -webkit-box-sizing: border-box; /* <=iOS4, <= Android  2.3 */
+     		  -moz-box-sizing: border-box; /* FF1+ */
+     		       box-sizing: border-box; /* Chrome, IE8, Opera, Safari 5.1*/
+        }
+    div[class=navbar-inner]{
+        background-color: #4CAF50;
+        border: 2px solid #4CAF50;
+        color: white;
+    }
+    div[class=navbar navbar-inverse navbar-fixed-top]{
+        border: 2px solid #4CAF50;
+    }
+   
+        input[type=button], input[type=submit], input[type=reset] {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 16px 24px;
+            text-decoration: none;
+            margin: 4px 2px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
+    
+    <script>
+        
+        
+        function validateForm() {
+  			var x = document.forms["letterForm"]["from"].value;
+    		if (x == null || x == "") {
+    		    alert("보내는 사람이 맞는지 확인해주세요");
+    		    $('#alert_form_error').show();
+     		   return false;
+   			}
+   			$('#alert_form_error').hide();
+   			$('#alert_form_success').show();
+   			alert("편지가 전달되었습니다 :)");
+   			return true;
+		}
+		
+		
+    </script>
+</head>
+<body>
+<div class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <h1>백현아 전도사님께 보내는 편지</h1>  
+        </div>
+    </div>
+</div>
+<div class="container">
+
+    <output id="outputLog"></output>
+    
+    <form action="/foundation" name="letterForm" method="post" onsubmit="return validateForm()">
+        <h2></h2> 
+        <div><label for="from" >보내는 사람:</label><input type="text" name="from" /></div>
+        <h2></h2>
+        <div><textarea name="content" rows="15" cols="60"></textarea></div>
+        <div class="alert fade-in alert-danger" id="alert_form_error" style="display:none">
+            <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
+            <strong>보내는 사람을 확인해주세요~ </strong> 보내는 사람이 안채워졌네요 ㅎㅎ
+        </div>
+        <div class="alert fade-in alert-success" id="alert_form_success" style="display:none">
+            <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
+            <strong>성공적으로 전달 되었습니다~!! </strong> 
+        </div>
+        <div><input id="listGreeting" type="submit" class="btn btn-small" value="보내기 "></div>
+        
+    </form>
+    <script>
+        function init() {
+            google.appengine.samples.hello.init('//' + window.location.host + '/_ah/api');
+        }
+    </script>
+    <script src="https://apis.google.com/js/client.js?onload=init"></script>
+</div>
+</body>
+</html>
+
